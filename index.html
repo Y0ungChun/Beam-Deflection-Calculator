@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beam Deflection Calculator</title>
+<style>
+  :root{
+    --bg:#f4f7fb; --card:#fff; --text:#1f2937; --muted:#6b7280;
+    --line:#dbe2ea; --accent:#2563eb; --accent2:#1d4ed8; --danger:#b91c1c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Arial,"Noto Sans KR",sans-serif;background:var(--bg);color:var(--text)}
+  .wrap{max-width:1180px;margin:28px auto;padding:0 18px 40px}
+  h1{text-align:center;margin:0 0 7px;font-size:30px}
+  .sub{text-align:center;color:var(--muted);margin-bottom:24px}
+  .grid{display:grid;grid-template-columns:1.05fr .95fr;gap:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:0 8px 24px rgba(31,41,55,.06)}
+  h2{font-size:19px;margin:0 0 18px}
+  h3{font-size:15px;margin:20px 0 10px;color:#374151}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .field{margin-bottom:13px}
+  label{display:block;font-weight:700;font-size:14px;margin-bottom:6px}
+  input,select{width:100%;padding:10px 11px;border:1px solid #cbd5e1;border-radius:9px;background:white;font-size:15px}
+  input:focus,select:focus{outline:2px solid #bfdbfe;border-color:var(--accent)}
+  .hint{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.4}
+  button{width:100%;border:0;border-radius:10px;background:var(--accent);color:white;padding:13px;font-weight:800;font-size:16px;cursor:pointer;margin-top:6px}
+  button:hover{background:var(--accent2)}
+  .error{display:none;color:var(--danger);background:#fef2f2;border:1px solid #fecaca;padding:10px 12px;border-radius:9px;margin:12px 0;font-size:14px}
+  .results{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .result{border:1px solid var(--line);background:#f8fafc;border-radius:12px;padding:14px}
+  .result .k{color:var(--muted);font-size:13px;margin-bottom:5px}
+  .result .v{font-weight:800;font-size:21px;word-break:break-word}
+  .result.wide{grid-column:1/-1}
+  .formula{margin-top:16px;padding:13px 14px;background:#f8fafc;border-left:4px solid var(--accent);border-radius:8px;font-size:13px;line-height:1.65;color:#475569}
+  .visual{margin-top:20px}
+  canvas{display:block;width:100%;height:330px;background:#fff;border:1px solid var(--line);border-radius:12px}
+  .legend{font-size:12px;color:var(--muted);margin-top:8px}
+  .sectionFields{display:none}
+  @media(max-width:850px){.grid{grid-template-columns:1fr}.row{grid-template-columns:1fr}.results{grid-template-columns:1fr}.result.wide{grid-column:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Beam Deflection Calculator</h1>
+  <div class="sub">Point load · Simply supported / Cantilever · 최대 모멘트, 처짐, 응력 계산</div>
+
+  <div class="grid">
+    <section class="card">
+      <h2>1. Beam & Load</h2>
+
+      <div class="field">
+        <label for="beamType">Beam type</label>
+        <select id="beamType">
+          <option value="simply">Simply supported beam</option>
+          <option value="cantilever">Cantilever beam</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="L">Beam length L (mm)</label>
+          <input id="L" type="number" min="0.001" step="any" value="1000">
+        </div>
+        <div class="field">
+          <label for="P">Point load P (N)</label>
+          <input id="P" type="number" min="0" step="any" value="500">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="a">Load position a — 왼쪽 끝 기준 (mm)</label>
+        <input id="a" type="number" min="0" step="any" value="500">
+        <div class="hint">Simply supported: 0 &lt; a &lt; L · Cantilever: 0 &lt; a ≤ L</div>
+      </div>
+
+      <h2 style="margin-top:24px">2. Material</h2>
+      <div class="field">
+        <label for="material">Material</label>
+        <select id="material">
+          <option value="200000">Steel — E = 200 GPa</option>
+          <option value="69000">Aluminum — E = 69 GPa</option>
+          <option value="11000">Wood (typical) — E = 11 GPa</option>
+          <option value="100000">Brass — E = 100 GPa</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="E">Elastic modulus E (MPa = N/mm²)</label>
+        <input id="E" type="number" min="0.001" step="any" value="200000">
+      </div>
+
+      <h2 style="margin-top:24px">3. Cross Section</h2>
+      <div class="field">
+        <label for="section">Cross section</label>
+        <select id="section">
+          <option value="rect">Rectangular</option>
+          <option value="circle">Solid circular</option>
+          <option value="tube">Hollow circular</option>
+          <option value="ibeam">I-beam</option>
+        </select>
+      </div>
+
+      <div id="rectFields" class="sectionFields">
+        <div class="row">
+          <div class="field"><label>Width b (mm)</label><input id="rectB" type="number" min="0.001" step="any" value="50"></div>
+          <div class="field"><label>Height h (mm)</label><input id="rectH" type="number" min="0.001" step="any" value="100"></div>
+        </div>
+      </div>
+
+      <div id="circleFields" class="sectionFields">
+        <div class="field"><label>Diameter d (mm)</label><input id="circleD" type="number" min="0.001" step="any" value="60"></div>
+      </div>
+
+      <div id="tubeFields" class="sectionFields">
+        <div class="row">
+          <div class="field"><label>Outer diameter D (mm)</label><input id="tubeD" type="number" min="0.001" step="any" value="60"></div>
+          <div class="field"><label>Inner diameter d (mm)</label><input id="tubed" type="number" min="0" step="any" value="50"></div>
+        </div>
+      </div>
+
+      <div id="ibeamFields" class="sectionFields">
+        <div class="row">
+          <div class="field"><label>Total width B (mm)</label><input id="iB" type="number" min="0.001" step="any" value="80"></div>
+          <div class="field"><label>Total height H (mm)</label><input id="iH" type="number" min="0.001" step="any" value="120"></div>
+          <div class="field"><label>Web thickness tᵥ (mm)</label><input id="itw" type="number" min="0.001" step="any" value="8"></div>
+          <div class="field"><label>Flange thickness t𝒇 (mm)</label><input id="itf" type="number" min="0.001" step="any" value="10"></div>
+        </div>
+      </div>
+
+      <div id="error" class="error"></div>
+      <button id="calcBtn">Calculate</button>
+    </section>
+
+    <section class="card">
+      <h2>Calculation Results</h2>
+      <div class="results">
+        <div class="result">
+          <div class="k">Second moment of area I</div>
+          <div class="v" id="rI">—</div>
+        </div>
+        <div class="result">
+          <div class="k">Maximum bending moment</div>
+          <div class="v" id="rM">—</div>
+        </div>
+        <div class="result">
+          <div class="k">Maximum deflection</div>
+          <div class="v" id="rDef">—</div>
+        </div>
+        <div class="result">
+          <div class="k">Maximum bending stress</div>
+          <div class="v" id="rStress">—</div>
+        </div>
+        <div class="result wide">
+          <div class="k">Maximum deflection position</div>
+          <div class="v" id="rPos">—</div>
+        </div>
+      </div>
+
+      <div class="formula" id="formulaBox">
+        단위계는 N–mm–MPa를 사용합니다. 계산 버튼을 누르면 선택한 지지조건과 하중 위치에 맞는 결과가 표시됩니다.
+      </div>
+    </section>
+  </div>
+
+  <section class="card visual">
+    <h2>Beam Visualization</h2>
+    <canvas id="beamCanvas" width="1100" height="330"></canvas>
+    <div class="legend">실선: 원래 보 · 곡선: 계산된 처짐 형상(보기 쉽도록 자동 확대) · 화살표: Point load</div>
+  </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function showSectionFields(){
+  document.querySelectorAll('.sectionFields').forEach(el => el.style.display='none');
+  const s = $('section').value;
+  $(s==='rect'?'rectFields':s==='circle'?'circleFields':s==='tube'?'tubeFields':'ibeamFields').style.display='block';
+}
+
+$('section').addEventListener('change', () => { showSectionFields(); calculate(); });
+
+$('material').addEventListener('change', () => {
+  if ($('material').value !== 'custom') $('E').value = $('material').value;
+  calculate();
+});
+
+function getSectionProperties(){
+  const s = $('section').value;
+  let I, c, desc;
+
+  if(s==='rect'){
+    const b=+$('rectB').value, h=+$('rectH').value;
+    if(!(b>0 && h>0)) throw new Error('사각형 단면의 폭과 높이는 0보다 커야 합니다.');
+    I=b*Math.pow(h,3)/12; c=h/2; desc=`I = bh³/12`;
+  }
+  else if(s==='circle'){
+    const d=+$('circleD').value;
+    if(!(d>0)) throw new Error('원형 단면의 지름은 0보다 커야 합니다.');
+    I=Math.PI*Math.pow(d,4)/64; c=d/2; desc=`I = πd⁴/64`;
+  }
+  else if(s==='tube'){
+    const D=+$('tubeD').value, d=+$('tubed').value;
+    if(!(D>0 && d>=0 && D>d)) throw new Error('중공 원형 단면은 외경 D > 내경 d ≥ 0 이어야 합니다.');
+    I=Math.PI*(Math.pow(D,4)-Math.pow(d,4))/64; c=D/2; desc=`I = π(D⁴-d⁴)/64`;
+  }
+  else{
+    const B=+$('iB').value, H=+$('iH').value, tw=+$('itw').value, tf=+$('itf').value;
+    if(!(B>0 && H>0 && tw>0 && tf>0)) throw new Error('I-beam의 모든 치수는 0보다 커야 합니다.');
+    if(!(tw < B)) throw new Error('I-beam의 web 두께는 전체 폭보다 작아야 합니다.');
+    if(!(2*tf < H)) throw new Error('I-beam에서 2×flange 두께는 전체 높이보다 작아야 합니다.');
+    I=(B*Math.pow(H,3) - (B-tw)*Math.pow(H-2*tf,3))/12;
+    c=H/2; desc=`I = [BH³-(B-tᵥ)(H-2t𝒇)³]/12`;
+  }
+  return {I,c,desc};
+}
+
+function deflectionAt(x, type, P, L, a, E, I){
+  if(type==='simply'){
+    const b=L-a;
+    if(x<=a){
+      return P*b*x*(L*L-b*b-x*x)/(6*L*E*I);
+    } else {
+      const z=L-x;
+      return P*a*z*(L*L-a*a-z*z)/(6*L*E*I);
+    }
+  } else {
+    if(x<=a){
+      return P*x*x*(3*a-x)/(6*E*I);
+    } else {
+      return P*a*a*(3*x-a)/(6*E*I);
+    }
+  }
+}
+
+function calculate(){
+  const err=$('error');
+  err.style.display='none';
+  try{
+    const type=$('beamType').value;
+    const L=+$('L').value, P=+$('P').value, a=+$('a').value, E=+$('E').value;
+
+    if(!(L>0)) throw new Error('보 길이 L은 0보다 커야 합니다.');
+    if(!(P>=0)) throw new Error('하중 P는 0 이상이어야 합니다.');
+    if(!(E>0)) throw new Error('탄성계수 E는 0보다 커야 합니다.');
+
+    if(type==='simply' && !(a>0 && a<L))
+      throw new Error('Simply supported beam의 하중 위치는 0 < a < L 이어야 합니다.');
+    if(type==='cantilever' && !(a>0 && a<=L))
+      throw new Error('Cantilever beam의 하중 위치는 0 < a ≤ L 이어야 합니다.');
+
+    const {I,c,desc}=getSectionProperties();
+    let Mmax;
+    if(type==='simply'){
+      Mmax=P*a*(L-a)/L;
+    } else {
+      Mmax=P*a;
+    }
+
+    const stress=Mmax*c/I;
+
+    let maxDef=-1, maxX=0;
+    const n=3000;
+    const xs=[], ys=[];
+    for(let i=0;i<=n;i++){
+      const x=L*i/n;
+      const y=deflectionAt(x,type,P,L,a,E,I);
+      xs.push(x); ys.push(y);
+      if(y>maxDef){ maxDef=y; maxX=x; }
+    }
+
+    $('rI').textContent = formatNumber(I) + ' mm⁴';
+    $('rM').textContent = formatNumber(Mmax) + ' N·mm';
+    $('rDef').textContent = formatNumber(maxDef) + ' mm';
+    $('rStress').textContent = formatNumber(stress) + ' MPa';
+    $('rPos').textContent = `x = ${formatNumber(maxX)} mm  (${formatNumber(maxX/L*100)} % of L)`;
+
+    const beamText = type==='simply'
+      ? 'Simply supported: R₁=P(L-a)/L, R₂=Pa/L, 최대 모멘트는 하중 위치에서 발생합니다.'
+      : 'Cantilever: 최대 굽힘모멘트는 고정단에서 발생합니다. 하중 뒤쪽 무하중 구간도 하중점의 기울기를 따라 변형됩니다.';
+    $('formulaBox').innerHTML =
+      `<b>Section:</b> ${desc}<br>` +
+      `<b>Beam:</b> ${beamText}<br>` +
+      `<b>Stress:</b> σ<sub>max</sub> = M<sub>max</sub>c/I<br>` +
+      `계산 가정: Euler–Bernoulli beam, 선형탄성, 작은 변형, 일정한 E와 단면.`;
+
+    drawBeam(type,L,a,P,xs,ys,maxDef,maxX);
+  }catch(e){
+    err.textContent=e.message;
+    err.style.display='block';
+    ['rI','rM','rDef','rStress','rPos'].forEach(id => $(id).textContent='—');
+    drawEmpty();
+  }
+}
+
+function formatNumber(v){
+  if(!Number.isFinite(v)) return '—';
+  const av=Math.abs(v);
+  if((av!==0 && av<0.001) || av>=1e7) return v.toExponential(4);
+  return v.toLocaleString(undefined,{maximumFractionDigits:4});
+}
+
+function drawEmpty(){
+  const c=$('beamCanvas'), ctx=c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.fillStyle='#64748b'; ctx.font='16px Arial';
+  ctx.textAlign='center';
+  ctx.fillText('유효한 값을 입력하면 보 형상이 표시됩니다.', c.width/2, c.height/2);
+}
+
+function drawBeam(type,L,a,P,xs,ys,maxDef,maxX){
+  const c=$('beamCanvas'), ctx=c.getContext('2d');
+  const W=c.width,H=c.height;
+  ctx.clearRect(0,0,W,H);
+
+  const left=90,right=W-70, beamY=120;
+  const sx=(right-left)/L;
+
+  // title line
+  ctx.strokeStyle='#334155'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(left,beamY); ctx.lineTo(right,beamY); ctx.stroke();
+
+  // supports
+  ctx.strokeStyle='#475569'; ctx.fillStyle='#e2e8f0'; ctx.lineWidth=2;
+  if(type==='simply'){
+    drawTriangle(ctx,left,beamY+4);
+    drawRoller(ctx,right,beamY+4);
+  }else{
+    ctx.fillStyle='#cbd5e1'; ctx.fillRect(left-18,beamY-38,18,76);
+    ctx.strokeStyle='#64748b';
+    for(let y=beamY-35;y<beamY+38;y+=10){
+      ctx.beginPath();ctx.moveTo(left-18,y);ctx.lineTo(left-28,y+8);ctx.stroke();
+    }
+  }
+
+  // point load arrow
+  const loadX=left+a*sx;
+  ctx.strokeStyle='#dc2626'; ctx.fillStyle='#dc2626'; ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(loadX,42);ctx.lineTo(loadX,beamY-8);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(loadX,beamY-8);ctx.lineTo(loadX-7,beamY-22);ctx.lineTo(loadX+7,beamY-22);ctx.closePath();ctx.fill();
+  ctx.font='14px Arial';ctx.textAlign='center';ctx.fillText(`P = ${formatNumber(P)} N`,loadX,30);
+
+  // deformed shape
+  const targetAmp=125;
+  const sy=maxDef>0 ? targetAmp/maxDef : 0;
+  ctx.strokeStyle='#2563eb'; ctx.lineWidth=3;
+  ctx.beginPath();
+  xs.forEach((x,i)=>{
+    const px=left+x*sx;
+    const py=beamY+ys[i]*sy;
+    if(i===0)ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  });
+  ctx.stroke();
+
+  // max deflection marker
+  if(maxDef>0){
+    const mx=left+maxX*sx, my=beamY+maxDef*sy;
+    ctx.fillStyle='#2563eb';ctx.beginPath();ctx.arc(mx,my,5,0,Math.PI*2);ctx.fill();
+    ctx.font='13px Arial';ctx.fillText('max δ',mx,my+20);
+  }
+
+  // dimensions / labels
+  ctx.fillStyle='#475569'; ctx.font='13px Arial';
+  ctx.textAlign='left';ctx.fillText('x = 0',left-10,H-25);
+  ctx.textAlign='right';ctx.fillText(`L = ${formatNumber(L)} mm`,right+15,H-25);
+  ctx.textAlign='center';ctx.fillText(`a = ${formatNumber(a)} mm`,loadX,beamY-45);
+}
+
+function drawTriangle(ctx,x,y){
+  ctx.fillStyle='#cbd5e1';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-18,y+30);ctx.lineTo(x+18,y+30);ctx.closePath();ctx.fill();
+  ctx.strokeStyle='#64748b';ctx.stroke();
+}
+function drawRoller(ctx,x,y){
+  drawTriangle(ctx,x,y);
+  ctx.fillStyle='#94a3b8';
+  ctx.beginPath();ctx.arc(x-9,y+38,5,0,Math.PI*2);ctx.arc(x+9,y+38,5,0,Math.PI*2);ctx.fill();
+}
+
+$('calcBtn').addEventListener('click',calculate);
+['beamType','L','P','a','E','rectB','rectH','circleD','tubeD','tubed','iB','iH','itw','itf']
+.forEach(id => $(id).addEventListener('input', () => {
+  if(id==='beamType') return;
+}));
+
+$('beamType').addEventListener('change',calculate);
+showSectionFields();
+calculate();
+</script>
+</body>
+</html>
